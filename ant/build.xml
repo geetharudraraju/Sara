@@ -1,0 +1,208 @@
+<project name="Project EyePatch Deploy" default="usage" basedir="." xmlns:sf="antlib:com.salesforce" xmlns:ext="antlib:com.salesforce.ant.ant_migration_ext">
+
+	<!-- Directories -->
+	<property name="properties.dir" location="./properties"/>
+	<property name="lib.dir" location="./lib"/>
+
+	<property name="massDisable.dir" location="../mass-disable"/>
+
+	<property name="backup.dir" location="../backup" />
+	<property name="buildTemp.dir" location="../buildTemp" />
+	<property name="buildTemp.original.dir" location="${buildTemp.dir}/retrieved-original" />
+	<property name="buildTemp.updated.dir" location="${buildTemp.dir}/retrieved-updated" />
+	<property name="backupenable.dir" location="${backup.dir}/${username}" />
+
+	<!-- Properties Files -->
+	<property name="local.properties.path" location="${properties.dir}/local.properties"/>
+	<property name="build.properties.path" location="${properties.dir}/build.properties"/>
+	
+	<!-- Property Values -->
+	<property name="runTests" value="false" />
+
+	<tstamp>
+		<format property="time.stamp" pattern="MMddyyyy-HHmmss" />
+	</tstamp>
+
+	<!-- Include files -->
+	<property file="${local.properties.path}"/>
+	<property file="${build.properties.path}"/>
+
+	<!-- Load libs -->
+	<taskdef resource="net/sf/antcontrib/antcontrib.properties" classpath="${lib.dir}/ant-contrib-1.0b3.jar"/>
+	<taskdef uri='antlib:com.salesforce' resource='com/salesforce/antlib.xml' classpath='${lib.dir}/ant-salesforce.jar' />
+	<taskdef uri='antlib:com.salesforce.ant.ant_migration_ext' resource='antlib.xml' classpath='${lib.dir}/ant-migration-ext-0.0.1.jar' />
+
+	<!-- Processing Tasks -->
+	<target name="disable" depends="validateDeploy, clearBuildTemp">
+		<mkdir dir="${buildTemp.original.dir}" />
+		<mkdir dir="${buildTemp.updated.dir}" />
+		<mkdir dir="${backup.dir}" />
+
+		<!-- List the metadata we want to disable -->
+		<sf:listMetadata username="${sfdc.deployUsername}" password="${sfdc.deployPassword}" serverurl="${sfdc.deployServerUrl}" metadataType="ValidationRule" resultFilePath="${buildTemp.dir}/validationRules.log" />
+		<sf:listMetadata username="${sfdc.deployUsername}" password="${sfdc.deployPassword}" serverurl="${sfdc.deployServerUrl}" metadataType="ApexTrigger" resultFilePath="${buildTemp.dir}/apexTriggers.log" />
+		<sf:listMetadata username="${sfdc.deployUsername}" password="${sfdc.deployPassword}" serverurl="${sfdc.deployServerUrl}" metadataType="WorkflowRule" resultFilePath="${buildTemp.dir}/workflowRules.log" />
+		<sf:listMetadata username="${sfdc.deployUsername}" password="${sfdc.deployPassword}" serverurl="${sfdc.deployServerUrl}" metadataType="Workflow" resultFilePath="${buildTemp.dir}/workflow.log" />
+
+		<!-- Sharing Rules cannot be retrieved this way we set as * in the Java app
+		<sf:listMetadata username="${sfdc.deployUsername}" password="${sfdc.deployPassword}" serverurl="${sfdc.deployServerUrl}" metadataType="SharingRules" resultFilePath="${buildTemp.dir}/sharingRules.log" /> -->
+		
+		<!-- Run our packager to create the retrieve.xml -->
+		<ext:package packageFile="${buildTemp.dir}/retrieve.xml" ignoreManaged="true">
+			<logFile metadataType="ValidationRule" filePath="${buildTemp.dir}/validationRules.log" objectFilter="Account">
+				<ignore fullName="Account.Other_SFA_Vendor_Required" />
+				<ignore fullName="Account.Account_Create_Update_Restrict" />
+			</logFile>
+			<logFile metadataType="ValidationRule" filePath="${buildTemp.dir}/validationRules.log" objectFilter="Lead">
+			</logFile>
+			<logFile metadataType="ValidationRule" filePath="${buildTemp.dir}/validationRules.log" objectFilter="Opportunity">
+				<ignore fullName="Opportunity.APAC_Region_field_required" />
+				<ignore fullName="Opportunity.Corporate_Sales_Region_Required" />
+				<ignore fullName="Opportunity.Corporate_Sales_Region_Required_old" />
+				<ignore fullName="Opportunity.Do_Not_Survey_Reason_Required" />
+				<ignore fullName="Opportunity.No_Opportunity_Reason_is_required" />
+				<ignore fullName="Opportunity.Package_Services_AE_Requirement" />
+				<ignore fullName="Opportunity.ReQualification_Reason_Required" />
+				<ignore fullName="Opportunity.Reason_For_24_Months" />
+				<ignore fullName="Opportunity.ACV_Impact_required_if_Price_is_Increase" />
+                                <ignore fullName="Opportunity.Services_Opportunity_Type" />
+			</logFile> 
+			<logFile metadataType="ValidationRule" filePath="${buildTemp.dir}/validationRules.log" objectFilter="Contact">
+			</logFile>            
+			<logFile metadataType="ValidationRule" filePath="${buildTemp.dir}/validationRules.log" objectFilter="SPOT_Profile__c">
+			</logFile>
+			<logFile metadataType="ValidationRule" filePath="${buildTemp.dir}/validationRules.log" objectFilter="Contract">
+				<ignore fullName="Contract.EITF_01_12" />
+			</logFile>
+			<logFile metadataType="WorkflowRule" filePath="${buildTemp.dir}/workflowRules.log" objectFilter="Account" />
+			<logFile metadataType="WorkflowRule" filePath="${buildTemp.dir}/workflowRules.log" objectFilter="Lead" />
+			<logFile metadataType="WorkflowRule" filePath="${buildTemp.dir}/workflowRules.log" objectFilter="Opportunity" />
+			<logFile metadataType="WorkflowRule" filePath="${buildTemp.dir}/workflowRules.log" objectFilter="Contact" />
+			<logFile metadataType="WorkflowRule" filePath="${buildTemp.dir}/workflowRules.log" objectFilter="SPOT_Profile__c" />
+			<logFile metadataType="WorkflowRule" filePath="${buildTemp.dir}/workflowRules.log" objectFilter="Contract" /> 
+			<logFile metadataType="ApexTrigger" filePath="${buildTemp.dir}/apexTriggers.log" objectFilter="Account" />
+			<type name="ApexTrigger" members="PartnerAccountTrigger" />
+			<type name="ApexTrigger" members="Account" />
+			<type name="ApexTrigger" members="AccountTrigger" />
+		</ext:package>
+
+		<!-- Retrieve this metadata -->
+		<sf:retrieve username="${sfdc.deployUsername}" password="${sfdc.deployPassword}" serverurl="${sfdc.deployServerUrl}" retrieveTarget="${buildTemp.original.dir}" unpackaged="${buildTemp.dir}/retrieve.xml" />
+
+		<!-- back up the original -->
+		<!-- <zip destfile="${backup.dir}/backup${time.stamp}.zip" basedir="${buildTemp.original.dir}" />  -->
+		
+		<copy todir="${backup.dir}/${username}">
+			<fileset dir="${buildTemp.original.dir}" />
+		</copy>
+
+		<!-- Copy retrieved to retrieved-updated -->
+		<copy todir="${buildTemp.updated.dir}">
+			<fileset dir="${buildTemp.original.dir}" />
+		</copy>
+
+		<!-- Disable All Triggers -->
+		<replace dir="${buildTemp.updated.dir}" value="Inactive" token="Active">
+			<include name="**/*.trigger-meta.xml" />
+		</replace>
+		<!-- Disable All ValidationRules -->
+		<replace dir="${buildTemp.updated.dir}" value="&lt;active&gt;false&lt;/active&gt;" token="&lt;active&gt;true&lt;/active&gt;">
+			<include name="**/*.object" />
+		</replace>
+		<!-- Disable All WorkflowRules -->
+		<replace dir="${buildTemp.updated.dir}" value="&lt;active&gt;false&lt;/active&gt;" token="&lt;active&gt;true&lt;/active&gt;">
+			<include name="**/*.workflow" />
+		</replace>
+
+		<!-- Deploy the Updated -->
+		
+		<sf:deploy username="${sfdc.deployUsername}" password="${sfdc.deployPassword}" serverurl="${sfdc.deployServerUrl}" deployroot="${buildTemp.updated.dir}" checkOnly="false" ignoreWarnings="true" rollbackOnError="true" />
+	</target>
+
+	<target name="enable" depends="validateDeploy, clearBuildTemp">
+		<!-- Deploy the Original -->
+		<sf:deploy username="${sfdc.deployUsername}" password="${sfdc.deployPassword}" serverurl="${sfdc.deployServerUrl}" deployroot="${backupenable.dir}" checkOnly="false" ignoreWarnings="true" rollbackOnError="true" />
+	</target>
+	<!-- Workflow masking target -->
+	<target name="mask" depends="validateDeploy, clearBuildTemp">
+		<mkdir dir="${buildTemp.original.dir}" />
+
+		<!-- List the metadata we want to disable -->	
+		<sf:listMetadata username="${sfdc.deployUsername}" password="${sfdc.deployPassword}" serverurl="${sfdc.deployServerUrl}" metadataType="Workflow" resultFilePath="${buildTemp.dir}/workflow.log" />
+
+		<!-- Run our packager to create the retrieve.xml -->
+		<ext:package packageFile="${buildTemp.dir}/retrieve.xml" ignoreManaged="true">         
+            <type name="Workflow" members="*" />    
+                </ext:package>
+
+		<!-- Retrieve this metadata -->
+		<sf:retrieve username="${sfdc.deployUsername}" password="${sfdc.deployPassword}" serverurl="${sfdc.deployServerUrl}" retrieveTarget="${buildTemp.original.dir}" unpackaged="${buildTemp.dir}/retrieve.xml" /> 
+
+		<!-- Remove Problem Nodes 
+		<replaceregexp match="&lt;tasks&gt;\s*&lt;fullName&gt;Followupwithcustomer&lt;/fullName&gt;.+?&lt;/tasks&gt;" replace="" flags="s">
+			<fileset dir="${buildTemp.original.dir}/workflows" includes="Opportunity.workflow" />
+		</replaceregexp>
+		<replaceregexp match="&lt;tasks&gt;\s*&lt;fullName&gt;RegistrationPaperworkSubmitted&lt;/fullName&gt;.+?&lt;/tasks&gt;" replace="" flags="s">
+			<fileset dir="${buildTemp.original.dir}/workflows" includes="Opportunity.workflow" />
+		</replaceregexp>-->
+		<replaceregexp match="&lt;alerts&gt;\s*&lt;fullName&gt;SupportRecordCreated&lt;/fullName&gt;.+?&lt;/alerts&gt;" replace="" flags="s">
+			<fileset dir="${buildTemp.original.dir}/workflows" includes="Partner_Support__c.workflow" />
+		</replaceregexp>
+
+		<!-- Mask All Workflows -->
+		<replaceregexp match="&lt;recipient&gt;.+@.+\..+&lt;/recipient&gt;" replace="&lt;recipient&gt;${sfdc.deployUsername}&lt;/recipient&gt;" flags="g">
+			<fileset dir="${buildTemp.original.dir}" includes="**/*.workflow" />
+		</replaceregexp>
+		<replaceregexp match="&lt;ccEmails&gt;.+@.+\..+&lt;/ccEmails&gt;" replace="&lt;ccEmails&gt;${sfdc.deployUsername}&lt;/ccEmails&gt;" flags="g">
+			<fileset dir="${buildTemp.original.dir}" includes="**/*.workflow" />
+		</replaceregexp>
+		<replaceregexp match="&lt;assignedTo&gt;.+@.+\..+&lt;/assignedTo&gt;" replace="&lt;assignedTo&gt;${sfdc.deployUsername}&lt;/assignedTo&gt;" flags="g">
+			<fileset dir="${buildTemp.original.dir}" includes="**/*.workflow" />
+		</replaceregexp>
+
+		<!-- Remove Duplicate Workflow emails entries -->
+		<replaceregexp 
+			match="(&lt;recipients&gt;\s*&lt;recipient&gt;${sfdc.deployUsername}&lt;/recipient&gt;\s*&lt;type&gt;user&lt;/type&gt;\s*&lt;/recipients&gt;\s*)+" 
+			replace="&lt;recipients&gt;${line.separator}&lt;recipient&gt;${sfdc.deployUsername}&lt;/recipient&gt;${line.separator}&lt;type&gt;user&lt;/type&gt;${line.separator}&lt;/recipients&gt;${line.separator}" 
+			flags="sg">
+			<fileset dir="${buildTemp.original.dir}/workflows" includes="**/*.workflow" />
+		</replaceregexp>
+
+		<!-- Copy retrieved to retrieved-updated -->
+		<copy todir="${buildTemp.updated.dir}">
+			<fileset dir="${buildTemp.original.dir}" />
+		</copy>
+
+		<!-- Deploy the Updated -->
+		<sf:deploy username="${sfdc.deployUsername}" password="${sfdc.deployPassword}" serverurl="${sfdc.deployServerUrl}" deployroot="${buildTemp.updated.dir}" checkOnly="false" ignoreWarnings="true" rollbackOnError="true" /> 
+	</target>
+
+	<target name="describe">
+		<sf:describeMetadata username="${sfdc.deployUsername}" password="${sfdc.deployPassword}" serverurl="${sfdc.deployServerUrl}" resultFilePath="${buildTemp.dir}/describe.log" />
+	</target>
+
+	<target name="list">
+		<sf:listMetadata username="${sfdc.deployUsername}" password="${sfdc.deployPassword}" serverurl="${sfdc.deployServerUrl}" metadataType="ValidationRule" resultFilePath="${buildTemp.dir}/list.log" />
+	</target>
+
+	<target name="validateDeploy">
+		<echo message="Deploy Server Url: ${sfdc.deployServerUrl}" />
+		<echo message="Deploy Username: ${sfdc.deployUsername}" />
+		<echo message="Deploy folder: ${backupenable.dir}" />
+	</target>
+
+	<target name="clearBuildTemp">
+		<mkdir dir="${buildTemp.dir}" />
+		<delete includeEmptyDirs="true">
+			<fileset dir="${buildTemp.dir}" includes="**/*" defaultexcludes="no"/>
+		</delete>
+	</target>
+
+	<target name="test">
+		
+	</target>
+
+	<target name="usage">
+		<echo message="Usage text here." />
+	</target>
+</project>
