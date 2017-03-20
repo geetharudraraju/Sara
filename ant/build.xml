@@ -49,7 +49,10 @@
 		
 		<!-- Run our packager to create the retrieve.xml -->
 		<ext:package packageFile="${buildTemp.dir}/retrieve.xml" ignoreManaged="true">
-			<logFile metadataType="ValidationRule" filePath="${buildTemp.dir}/validationRules.log" objectFilter="Account">
+			</logFile> 
+			<logFile metadataType="CustomObject" filePath="${buildTemp.dir}/customObjects.log" objectFilter="*">
+			</logFile>
+		<!--	<logFile metadataType="ValidationRule" filePath="${buildTemp.dir}/validationRules.log" objectFilter="Account">
 				<ignore fullName="Account.Other_SFA_Vendor_Required" />
 				<ignore fullName="Account.Account_Create_Update_Restrict" />
 			</logFile>
@@ -83,7 +86,7 @@
 			<logFile metadataType="ApexTrigger" filePath="${buildTemp.dir}/apexTriggers.log" objectFilter="Account" />
 			<type name="ApexTrigger" members="PartnerAccountTrigger" />
 			<type name="ApexTrigger" members="Account" />
-			<type name="ApexTrigger" members="AccountTrigger" />
+			<type name="ApexTrigger" members="AccountTrigger" />  -->
 		</ext:package>
 
 		<!-- Retrieve this metadata -->
